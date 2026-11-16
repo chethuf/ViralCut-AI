@@ -5,6 +5,7 @@ import android.app.Activity
 import android.os.Bundle
 import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.graphics.Color
 import android.view.Gravity
 import android.widget.*
@@ -12,6 +13,7 @@ import android.widget.*
 class MainActivity : Activity() {
 
     private val PICK_VIDEO = 100
+    private lateinit var status: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,16 +39,19 @@ class MainActivity : Activity() {
         val selectButton = Button(this)
         selectButton.text = "SELECT VIDEO"
 
-        val status = TextView(this)
-        status.text = "Select a video to get started"
-        status.textSize = 14f
+        status = TextView(this)
+        status.text = "No video selected"
+        status.textSize = 15f
         status.setTextColor(Color.WHITE)
         status.gravity = Gravity.CENTER
+        status.setPadding(10, 30, 10, 30)
 
         selectButton.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
             intent.type = "video/*"
             intent.addCategory(Intent.CATEGORY_OPENABLE)
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
             startActivityForResult(intent, PICK_VIDEO)
         }
 
@@ -67,12 +72,34 @@ class MainActivity : Activity() {
 
         if (requestCode == PICK_VIDEO && resultCode == RESULT_OK) {
             val videoUri: Uri? = data?.data
+
             if (videoUri != null) {
-                Toast.makeText(
-                    this,
-                    "Video selected successfully!",
-                    Toast.LENGTH_LONG
-                ).show()
+                try {
+                    contentResolver.takePersistableUriPermission(
+                        videoUri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {
+                }
+
+                var fileName = "Selected video"
+
+                contentResolver.query(
+                    videoUri,
+                    null,
+                    null,
+                    null,
+                    null
+                )?.use { cursor ->
+                    val column = cursor.getColumnIndex(
+                        OpenableColumns.DISPLAY_NAME
+                    )
+                    if (cursor.moveToFirst() && column >= 0) {
+                        fileName = cursor.getString(column)
+                    }
+                }
+
+                status.text = "VIDEO SELECTED\n\n$fileName\n\nReady for processing."
             }
         }
     }
