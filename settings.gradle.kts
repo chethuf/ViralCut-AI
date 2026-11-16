@@ -1,3 +1,4 @@
+
 pluginManagement {
     repositories {
         google()
@@ -14,6 +15,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ViralCutAI"
+rootProject.name = "ViralCut-AI"
 include(":app")
-
