@@ -4,6 +4,7 @@
     <application
         android:label="ViralCut AI"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
+
         <activity
             android:name="com.viralcut.ai.MainActivity"
             android:exported="true">
@@ -12,5 +13,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
     </application>
 </manifest>
