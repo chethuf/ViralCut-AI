@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.viralcut.ai"
+    namespace = "com.example.viralcutai"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.viralcut.ai"
+        applicationId = "com.example.viralcutai"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
@@ -26,3 +26,6 @@ android {
     }
 }
 
+dependencies {
+    implementation("androidx.core:core-ktx:1.15.0")
+}
