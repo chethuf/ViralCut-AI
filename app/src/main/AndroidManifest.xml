@@ -1,19 +1,227 @@
 
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application
-        android:allowBackup="false"
-        android:label="ViralCut AI"
-        android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+package com.viralcut.ai
 
-        <activity
-            android:name="com.viralcut.ai.MainActivity"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+import android.app.Activity
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.content.Intent
+import android.net.Uri
+import android.media.MediaMetadataRetriever
+import android.graphics.Color
+import android.view.Gravity
+import android.view.View
+import android.widget.*
+import java.util.Locale
 
-    </application>
-</manifest>
+class MainActivity : Activity() {
+
+    private val PICK_VIDEO = 100
+    private var videoUri: Uri? = null
+    private var startTime = 0L
+    private var processing = false
+
+    private lateinit var status: TextView
+    private lateinit var timer: TextView
+    private lateinit var details: TextView
+    private lateinit var progress: ProgressBar
+    private lateinit var startButton: Button
+
+    private val handler = Handler(Looper.getMainLooper())
+
+    private val timerRunnable = object : Runnable {
+        override fun run() {
+            if (processing) {
+                val seconds = (System.currentTimeMillis() - startTime) / 1000
+                timer.text = "Elapsed time: ${formatTime(seconds)}"
+                handler.postDelayed(this, 1000)
+            }
+        }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        val layout = LinearLayout(this)
+        layout.orientation = LinearLayout.VERTICAL
+        layout.setPadding(28, 35, 28, 35)
+        layout.gravity = Gravity.CENTER
+        layout.setBackgroundColor(Color.rgb(15, 18, 30))
+
+        fun makeText(value: String, size: Float): TextView {
+            return TextView(this).apply {
+                text = value
+                textSize = size
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                setPadding(8, 12, 8, 12)
+            }
+        }
+
+        val title = makeText("VIRALCUT AI", 30f)
+        val subtitle = makeText("Turn Long Videos Into Viral Shorts", 15f)
+
+        val selectButton = Button(this).apply {
+            text = "SELECT VIDEO"
+        }
+
+        startButton = Button(this).apply {
+            text = "START PROCESSING"
+            isEnabled = false
+        }
+
+        status = makeText("Select a video to get started", 16f)
+        timer = makeText("Elapsed time: 00:00", 18f)
+        details = makeText("", 14f)
+
+        progress = ProgressBar(
+            this, null, android.R.attr.progressBarStyleHorizontal
+        ).apply {
+            max = 100
+            progress = 0
+            visibility = View.GONE
+        }
+
+        selectButton.setOnClickListener {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                type = "video/*"
+                addCategory(Intent.CATEGORY_OPENABLE)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            }
+            startActivityForResult(intent, PICK_VIDEO)
+        }
+
+        startButton.setOnClickListener {
+            startProcessing()
+        }
+
+        layout.addView(title)
+        layout.addView(subtitle)
+        layout.addView(selectButton)
+        layout.addView(status)
+        layout.addView(startButton)
+        layout.addView(timer)
+        layout.addView(progress)
+        layout.addView(details)
+
+        setContentView(layout)
+    }
+
+    private fun startProcessing() {
+        val selectedUri = videoUri ?: return
+        if (processing) return
+
+        processing = true
+        startTime = System.currentTimeMillis()
+
+        startButton.isEnabled = false
+        status.text = "INSPECTING VIDEO..."
+        details.text = "Reading video information"
+        progress.visibility = View.VISIBLE
+        progress.isIndeterminate = true
+
+        handler.post(timerRunnable)
+
+        Thread {
+            val retriever = MediaMetadataRetriever()
+
+            try {
+                retriever.setDataSource(this, selectedUri)
+
+                val duration = retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_DURATION
+                )?.toLongOrNull() ?: 0L
+
+                val width = retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH
+                ) ?: "Unknown"
+
+                val height = retriever.extractMetadata(
+                    MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT
+                ) ?: "Unknown"
+
+                val elapsed = (System.currentTimeMillis() - startTime) / 1000
+
+                runOnUiThread {
+                    processing = false
+                    handler.removeCallbacks(timerRunnable)
+
+                    timer.text = "Inspection time: ${formatTime(elapsed)}"
+                    status.text = "VIDEO INSPECTION COMPLETED"
+                    details.text =
+                        "Duration: ${formatTime(duration / 1000)}\n" +
+                        "Resolution: ${width} × ${height}\n\n" +
+                        "Video is ready for the next processing stage."
+
+                    progress.isIndeterminate = false
+                    progress.progress = 100
+                    startButton.isEnabled = true
+                    startButton.text = "INSPECTION COMPLETE"
+                }
+
+            } catch (e: Exception) {
+                runOnUiThread {
+                    processing = false
+                    handler.removeCallbacks(timerRunnable)
+                    status.text = "VIDEO INSPECTION FAILED"
+                    details.text = e.message ?: "Could not read this video."
+                    progress.visibility = View.GONE
+                    startButton.isEnabled = true
+                    startButton.text = "TRY AGAIN"
+                }
+            } finally {
+                try {
+                    retriever.release()
+                } catch (_: Exception) {
+                }
+            }
+        }.start()
+    }
+
+    private fun formatTime(seconds: Long): String {
+        val hours = seconds / 3600
+        val minutes = (seconds % 3600) / 60
+        val secs = seconds % 60
+
+        return if (hours > 0) {
+            String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, secs)
+        } else {
+            String.format(Locale.US, "%02d:%02d", minutes, secs)
+        }
+    }
+
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?
+    ) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == PICK_VIDEO && resultCode == RESULT_OK) {
+            val uri = data?.data ?: return
+            videoUri = uri
+
+            try {
+                contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {
+            }
+
+            status.text = "VIDEO SELECTED\nReady to inspect"
+            details.text = uri.lastPathSegment ?: "Video selected"
+            timer.text = "Elapsed time: 00:00"
+            progress.visibility = View.GONE
+            startButton.text = "START PROCESSING"
+            startButton.isEnabled = true
+        }
+    }
+
+    override fun onDestroy() {
+        processing = false
+        handler.removeCallbacks(timerRunnable)
+        super.onDestroy()
+    }
+}
